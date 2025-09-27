@@ -1,0 +1,8 @@
+# Arquivos do Streamlit Secrets
+.streamlit/secrets.toml
+
+# Arquivos de ambiente Python
+__pycache__/
+*.pyc
+.env
+venv/
