@@ -1,9 +1,8 @@
-# app.py (Página Principal - Apresentação)
 import streamlit as st
-from utils import check_password # Importa a função de login
+from utils import check_password 
 
 st.set_page_config(
-    page_title="Página Inicial - Análise de Sentimentos",
+    page_title="PIO 3 - CD 4ºSEM - Fatec Cotia",
     page_icon="👋",
     layout="wide"
 )
@@ -13,8 +12,7 @@ if not check_password():
     st.stop() # Bloqueia a execução do restante da página se não estiver logado
 
 # --- Conteúdo da Página de Apresentação ---
-st.sidebar.success("Navegue pelas seções do projeto.")
-st.balloons()
+st.sidebar.success("Navegue pelas seções do nosso trabalho pela Esquerda.")
 
 st.title("Projeto Integrador: Análise de Sentimentos em Tweets sobre Saúde Mental")
 
@@ -37,7 +35,7 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.subheader("👨‍🏫 Professor Orientador")
-    st.write("- Nome do Professor")
+    st.write("- Rômulo ")
 
 with col2:
     st.subheader("👩‍💻 Integrantes do Grupo")
