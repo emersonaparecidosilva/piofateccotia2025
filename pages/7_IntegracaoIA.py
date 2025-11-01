@@ -6,20 +6,33 @@ import sys
 
 # Configuração básica da página do Streamlit
 st.set_page_config(
-    page_title="Triagem de Risco",
+    page_title="Integração com IA",
     page_icon="🩺",
     layout="wide"
 )
 
 # Tenta carregar a chave de API dos segredos do Streamlit
 try:
-    api_key = st.secrets["GEMINI_API_KEY"]
+    # Este bloco de código foi melhorado para ler sua chave 
+    # independentemente de como ela está no secrets.toml
+    api_key = None
+    if st.secrets.get("GEMINI_API_KEY"):
+        if isinstance(st.secrets.get("GEMINI_API_KEY"), dict):
+            api_key = st.secrets["GEMINI_API_KEY"].get("GEMINI_API_KEY")
+        elif isinstance(st.secrets.get("GEMINI_API_KEY"), str):
+            api_key = st.secrets["GEMINI_API_KEY"]
+    
+    if not api_key and st.secrets.get("credentials"):
+        if isinstance(st.secrets.get("credentials"), dict):
+            api_key = st.secrets["credentials"].get("GEMINI_API_KEY")
+
     if not api_key:
-        raise ValueError
+        raise ValueError("Chave de API não encontrada.")
+
     genai.configure(api_key=api_key)
 except (KeyError, ValueError, FileNotFoundError):
     st.error("ERRO: A 'GEMINI_API_KEY' não foi encontrada.")
-    st.error("Por favor, crie o arquivo '.streamlit/secrets.toml' e adicione sua chave.")
+    st.error("Por favor, verifique seu painel 'Settings -> Secrets' no Streamlit Cloud.")
     st.stop()
 
 
@@ -41,8 +54,8 @@ Você NUNCA deve fornecer um diagnóstico definitivo. Sua função é classifica
 2.  **Formato da Resposta:** Responda ESTRITAMENTE no seguinte formato (use Markdown):
 
     **Nível de Risco:** [CLASSIFICAÇÃO]
+
     **Justificativa:** [Análise concisa de 2-3 linhas explicando *por que* você atribuiu esse nível, citando os indicadores encontrados no texto.]
-    **Disclaimer:** [Inclua o disclaimer padrão abaixo.]
 
 3.  **Níveis de Classificação:**
     * **NÍVEL CRÍTICO:** Presença de ideação explícita com plano ou intenção imediata.
@@ -51,13 +64,10 @@ Você NUNCA deve fornecer um diagnóstico definitivo. Sua função é classifica
     * **NÍVEL BAIXO:** Tristeza, frustração, mas sem indicadores claros dos níveis acima.
     * **NÍVEL INSUFICIENTE:** Texto muito curto ou ambíguo.
 
-# DISCLAIMER OBRIGATÓRIO (Incluir em TODAS as respostas)
-**Atenção:** Esta é uma triagem automatizada e NÃO substitui a avaliação clínica profissional. A análise final e qualquer intervenção devem ser feitas pelo psiquiatra supervisor.
 """
 
 # --- CONFIGURAÇÃO DO MODELO GEMINI ---
 
-# Configurações de geração (baixa temperatura para respostas consistentes)
 generation_config = {
     "temperature": 0.2,
     "top_p": 1,
@@ -65,23 +75,20 @@ generation_config = {
     "max_output_tokens": 2048,
 }
 
-# ----------------------------------------------------------------------
-# !! IMPORTANTE: CONFIGURAÇÕES DE SEGURANÇA !!
-# Estamos desabilitando o bloqueio de "DANGEROUS_CONTENT" porque
-# o propósito deste app é analisar exatamente esse tipo de conteúdo.
-# NÃO USE ESTA CONFIGURAÇÃO EM APPS PÚBLICOS.
+
 safety_settings = {
     "HARM_CATEGORY_HARASSMENT": "BLOCK_MEDIUM_AND_ABOVE",
     "HARM_CATEGORY_HATE_SPEECH": "BLOCK_MEDIUM_AND_ABOVE",
     "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_MEDIUM_AND_ABOVE",
-    "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE" # PERMITE A ANÁLISE DE CONTEÚDO SENSÍVEL
+    "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE" 
 }
 # ----------------------------------------------------------------------
 
 # Inicialização do modelo
 try:
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-pro-latest", # Recomendo usar um modelo Pro
+        # ---- CORREÇÃO PRINCIPAL AQUI ----
+        model_name="models/gemini-pro-latest", 
         generation_config=generation_config,
         system_instruction=SYSTEM_INSTRUCTION,
         safety_settings=safety_settings
@@ -93,27 +100,6 @@ except Exception as e:
 
 # --- FUNÇÃO DE ANÁLISE ---
 
-# def analisar_texto_com_gemini(texto_usuario):
-#     """
-#     Envia o texto para a API do Gemini com o prompt de sistema e retorna a análise.
-#     """
-#     if not texto_usuario:
-#         return "Erro: Nenhum texto fornecido."
-
-#     try:
-#         # Usamos generate_content para uma única chamada (não um chat)
-#         response = model.generate_content(texto_usuario)
-#         return response.text
-#     except Exception as e:
-#         # Captura erros, incluindo bloqueios de segurança
-#         if "prompt was blocked" in str(e):
-#             return "Erro: O texto de entrada foi bloqueado pela política de segurança da API, apesar das configurações. O conteúdo pode ser extremo."
-#         if "response was blocked" in str(e):
-#              return "Erro: A resposta da IA foi bloqueada. Isso pode acontecer se a IA tentar citar diretamente conteúdo muito gráfico."
-#         return f"Erro inesperado ao processar a solicitação: {str(e)}"
-
-# --- FUNÇÃO DE ANÁLISE (VERSÃO DE DEBUG) ---
-
 def analisar_texto_com_gemini(texto_usuario):
     """
     Envia o texto para a API do Gemini com o prompt de sistema e retorna a análise.
@@ -122,53 +108,39 @@ def analisar_texto_com_gemini(texto_usuario):
         return "Erro: Nenhum texto fornecido."
 
     try:
-        st.write("DEBUG: Dentro da função analisar_texto_com_gemini.")
-        st.write(f"DEBUG: Tentando chamar model.generate_content com {len(texto_usuario)} caracteres.")
-        
-        # Esta é a linha que provavelmente está travando
+        # Esta é a chamada de API
         response = model.generate_content(texto_usuario)
-        
-        st.write("DEBUG: Chamada da API concluída. Processando resposta.")
         return response.text
 
     except Exception as e:
-        # Se houver qualquer erro na chamada, ele será capturado aqui
+        # Captura erros, incluindo bloqueios de segurança
         st.error(f"ERRO CRÍTICO NA CHAMADA DA API: {e}")
-        
-        if "API key not valid" in str(e):
-             st.error("Diagnóstico: A chave de API é inválida. Verifique o arquivo secrets.toml.")
-        elif "Failed to connect" in str(e) or "DeadlineExceeded" in str(e):
-             st.error("Diagnóstico: Falha de conexão. Verifique seu firewall ou conexão com a internet.")
-        
-        return f"Falha ao processar a solicitação. Detalhe técnico: {str(e)}"
+        if "prompt was blocked" in str(e):
+            return "Erro: O texto de entrada foi bloqueado pela política de segurança da API, apesar das configurações. O conteúdo pode ser extremo."
+        if "response was blocked" in str(e):
+             return "Erro: A resposta da IA foi bloqueada. Isso pode acontecer se a IA tentar citar diretamente conteúdo muito gráfico."
+        return f"Erro inesperado ao processar a solicitação: {str(e)}"
 
 # --- INTERFACE DO USUÁRIO (STREAMLIT) ---
 
-st.title("🩺 Ferramenta de Triagem de Risco")
-st.subheader("Assistente de IA para análise preliminar de textos")
-st.markdown("Baseado nas diretrizes do Psiquiatra Supervisor.")
-
-st.warning(
-    "**AVISO DE CONFIDENCIALIDADE:** Esta é uma ferramenta de uso clínico restrito. "
-    "Não insira dados sem o devido consentimento legal (LGPD) e NUNCA exponha esta aplicação à internet pública."
-)
+st.title("🩺 Integração com IA Gemini")
 
 # Área de texto para o input
 texto_para_analisar = st.text_area(
-    "Cole o texto a ser analisado:",
-    height=300,
-    placeholder="Insira o texto do colaborador aqui..."
+    " ",
+    height=150,
+    placeholder="Insira o texto aqui..."
 )
 
 # Botão para disparar a análise
-if st.button("Analisar Texto"):
+if st.button("Analisar Texto/Tweet"):
     if texto_para_analisar:
         # Mostra um "spinner" enquanto a IA processa
         with st.spinner("Analisando... A IA está avaliando o texto."):
             resultado_analise = analisar_texto_com_gemini(texto_para_analisar)
         
         # Exibe o resultado
-        st.subheader("Resultado da Triagem")
+        st.subheader("Resultado")
         st.markdown(resultado_analise) # O resultado já vem formatado em Markdown
     else:
         st.warning("Por favor, insira um texto para analisar.")

@@ -7,3 +7,5 @@ nltk
 scikit-learn
 plotly
 google.generativeai
+wordcloud 
+matplotlib
