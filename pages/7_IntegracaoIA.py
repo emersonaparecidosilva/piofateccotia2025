@@ -88,7 +88,7 @@ safety_settings = {
 try:
     model = genai.GenerativeModel(
         # ---- CORREÇÃO PRINCIPAL AQUI ----
-        model_name="models/gemini-2.0-flash-lite",
+        model_name="models/gemini-2.5-flash-lite",
         generation_config=generation_config,
         system_instruction=SYSTEM_INSTRUCTION,
         safety_settings=safety_settings
